@@ -11,6 +11,20 @@ Vertex::Vertex(Face & face, Corner corner, QPoint p) :
 {
 }
 
+const Vertex & Vertex::operator=(const QPoint & p)
+{
+	x = p.x();
+	y = p.y();
+	return *this;
+}
+
+const Vertex & Vertex::operator=(const Vertex & v)
+{
+	x = v.x;
+	y = v.y;
+	return *this;
+}
+
 bool Vertex::operator==(const Vertex & v) const
 {
 	return x == v.x && y == v.y;
@@ -21,16 +35,20 @@ bool Vertex::operator!=(const Vertex & v) const
 	return x != v.x || y != v.y;
 }
 
+bool Vertex::operator==(const QPoint & v) const
+{
+	return x == v.x() && y == v.y();
+}
+
+bool Vertex::operator!=(const QPoint & v) const
+{
+	return x != v.x() || y != v.y();
+}
+
 bool Vertex::isContained(QPoint pos, QSize size) const
 {
 	return pos.x() < x && x < pos.x() + size.width()
 		&& pos.y() < y && y < pos.y() + size.height();
-}
-
-
-void Vertex::destroy()
-{
-	face.destroyed = true;
 }
 
 bool Vertex::canMoveHorizontally()
@@ -46,4 +64,10 @@ bool Vertex::isEdgeSelected()
 bool Vertex::isExtrudable()
 {
 	return face.isExtrudable();
+}
+
+void Vertex::draw(QPainter & painter)
+{
+
+
 }

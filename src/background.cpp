@@ -44,7 +44,7 @@ QSize Background::dimensions() const
 	return QSize();
 }
 
-void Background::readLayer(FILE * file, int width, int height, int i, uint32_t * offsets, QWidget * parent)
+void Background::readLayer(FILE * file, int width, int height, int i, uint32_t * offsets, MainWindow * parent)
 {
 	for(auto j = 0; j < NO_LAYERS; ++j)
 	{
@@ -52,7 +52,7 @@ void Background::readLayer(FILE * file, int width, int height, int i, uint32_t *
 	}
 }
 
-void Background::writeLayer(FILE * file, int i, uint32_t * offsets, QWidget * parent)
+void Background::writeLayer(FILE * file, int i, uint32_t * offsets, MainWindow * parent)
 {
 	for(auto j = 0; j < NO_LAYERS; ++j)
 	{

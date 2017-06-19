@@ -3,6 +3,7 @@
 #include <QImage>
 #include <vector>
 
+class MainWindow;
 typedef struct _IO_FILE FILE;
 
 class BackgroundImage
@@ -27,8 +28,8 @@ public:
 	QImage image;
 	std::vector< std::vector<uint8_t> > compressed;
 
-	uint32_t write(FILE * file, QWidget * parent);
-	void read(FILE * file, uint16_t tiles_x, uint16_t tiles_y, uint32_t offset, QWidget * parent);
+	uint32_t write(FILE * file, MainWindow * parent);
+	void read(FILE * file, uint16_t tiles_x, uint16_t tiles_y, uint32_t offset, MainWindow * parent);
 
 	QSize tiles() const;
 	size_t totalTiles() const;

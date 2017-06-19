@@ -7,6 +7,7 @@
 #include "face.h"
 #include "vertex.h"
 #include <unordered_map>
+#include "mapeditor.h"
 
 struct image_header
 {
@@ -52,7 +53,7 @@ struct spr_header
 };
 
 
-QImage ImportS16Frames(FILE * file, uint32_t RGBformat, int width, int height, int length, int img_width, int img_height, QWidget * parent)
+QImage ImportS16Frames(FILE * file, uint32_t RGBformat, int width, int height, int length, int img_width, int img_height, MainWindow * parent)
 {
 	QImage image;
 	if(RGBformat > 1)
@@ -135,7 +136,7 @@ QImage ImportS16Frames(FILE * file, uint32_t RGBformat, int width, int height, i
 	return image;
 }
 
-QImage importS16(FILE * file, QWidget * parent)
+QImage importS16(FILE * file, MainWindow * parent)
 {
 	uint32_t RGBformat;
 	uint16_t length;
@@ -149,7 +150,7 @@ QImage importS16(FILE * file, QWidget * parent)
 	return ImportS16Frames(file, RGBformat, 58, 16, length, 144, 150, parent);
 }
 
-QImage importBlk(FILE * file, QWidget * parent)
+QImage importBlk(FILE * file, MainWindow * parent)
 {
 	uint32_t RGBformat;
 	uint16_t width, height, length;
@@ -233,7 +234,7 @@ const QVector<QRgb> & getC1Palette()
 }
 
 
-QImage importSpr(FILE * file, QWidget * parent)
+QImage importSpr(FILE * file, MainWindow * parent)
 {
 	QImage image;
 
@@ -283,7 +284,7 @@ QImage importSpr(FILE * file, QWidget * parent)
 	return image;
 }
 
-bool exportSpr(const QImage & image, FILE * file, QWidget *)
+bool exportSpr(const QImage & image, FILE * file, MainWindow *)
 {
 	QImage img = image.convertToFormat(QImage::Format_Indexed8, getC1Palette(),
 		Qt::DiffuseDither | Qt::PreferDither | Qt::NoOpaqueDetection);
@@ -321,7 +322,7 @@ bool exportSpr(const QImage & image, FILE * file, QWidget *)
 	return true;
 }
 
-bool ExportS16Frames(FILE * file, const QImage & image, int /*width*/, int height, int length, int img_width, int img_height, QWidget *)
+bool ExportS16Frames(FILE * file, const QImage & image, int /*width*/, int height, int length, int img_width, int img_height, MainWindow *)
 {
 	int base_offset = 6 + 8*length;
 	uint16_t w = byte_swap((uint16_t) img_width);
@@ -358,7 +359,7 @@ bool ExportS16Frames(FILE * file, const QImage & image, int /*width*/, int heigh
 	return true;
 }
 
-bool exportS16(const QImage & image, FILE * file, QWidget * parent)
+bool exportS16(const QImage & image, FILE * file, MainWindow * parent)
 {
 	uint32_t RGBformat = byte_swap((uint32_t) 1);
 	uint16_t length    = byte_swap((uint16_t) (58*16));
@@ -369,7 +370,7 @@ bool exportS16(const QImage & image, FILE * file, QWidget * parent)
 	return ExportS16Frames(file, image, 58, 16, 58*16, 144, 150, parent);
 }
 
-bool exportBlk(const QImage & image, QSize size, FILE * file, QWidget * parent)
+bool exportBlk(const QImage & image, QSize size, FILE * file, MainWindow * parent)
 {
 	uint32_t RGBformat	= byte_swap((uint32_t) 1);
 
@@ -388,14 +389,14 @@ bool exportBlk(const QImage & image, QSize size, FILE * file, QWidget * parent)
 	return ExportS16Frames(file, image, width, height, length, 128, 128, parent);
 }
 
-bool exportCos(FILE * file, QPoint position, QSize size, QString background, QWidget *)
+bool exportCos(FILE * file, QPoint position, QSize size, QString background, MapEditor * window)
 {
 	std::unordered_map<Face *, int> game_variables;
 
 	fprintf(file, "setv va01 addm %i %i %i %i \"%s\"\n", position.x(), position.y(), size.width(), size.height(), background.toStdString().c_str());
 	fprintf(file, "mmsc %i %i \"\"\n", position.x() + size.width()/2, position.y() + size.height()/2);
 
-	for(auto i = Face::allFaces().begin(); i != Face::allFaces().end(); ++i)
+	for(auto i = window->selection.allFaces.begin(); i != window->selection.allFaces.end(); ++i)
 	{
 		int l  = (*i)->verticies[TopLeft	].x + position.x();
 		int r  = (*i)->verticies[TopRight	].x + position.x();
@@ -407,7 +408,7 @@ bool exportCos(FILE * file, QPoint position, QSize size, QString background, QWi
 		fprintf(file, "  setv va00 addr va01 %i %i %i %i %i %i\n", l, r, tl, tr, bl, br);
 		fprintf(file, "    rtyp va00 %i\n", (*i)->room_type);
 		fprintf(file, "    rmsc %i %i \"\"\n", (l + r) / 2, (tl+tr+bl+br)/4);
-		fprintf(file, "    setv game \"map_tmp_%i\"\n", (int) game_variables.size());
+		fprintf(file, "    setv game \"map_tmp_%i\" va00\n", (int) game_variables.size());
 
 		game_variables.insert(std::make_pair(*i, game_variables.size()));
 	}
@@ -415,7 +416,7 @@ bool exportCos(FILE * file, QPoint position, QSize size, QString background, QWi
 	int lines_printed = -1;
 	int current_face = 0;
 
-	for(auto i = Face::allFaces().begin(); i != Face::allFaces().end(); ++i, ++current_face)
+	for(auto i = window->selection.allFaces.begin(); i != window->selection.allFaces.end(); ++i, ++current_face)
 	{
 		for(int j = 0; j < 4; ++j)
 		{
@@ -429,6 +430,9 @@ bool exportCos(FILE * file, QPoint position, QSize size, QString background, QWi
 			fprintf(file, "door game \"map_tmp_%i\" game \"map_tmp_%i\" %i\n", current_face, game_variables[ptr], (*i)->permeability[j]);
 		}
 	}
+
+	if(lines_printed % 10 != 0)
+		fprintf(file, "\n");
 
 	for(size_t i = 0; i < game_variables.size(); ++i)
 	{

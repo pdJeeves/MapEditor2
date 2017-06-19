@@ -4,6 +4,7 @@
 #include <QSize>
 #include "backgroundimage.h"
 
+class MainWindow;
 class QWidget;
 class QPainter;
 
@@ -20,8 +21,8 @@ public:
 	bool canSetImage(QSize size) const;
 	QSize dimensions() const;
 
-	void readLayer(FILE * file, int width, int height, int i, uint32_t * offsets, QWidget * parent);
-	void writeLayer(FILE * file, int i, uint32_t * offsets, QWidget * parent);
+	void readLayer(FILE * file, int width, int height, int i, uint32_t * offsets, MainWindow * parent);
+	void writeLayer(FILE * file, int i, uint32_t * offsets, MainWindow * parent);
 
 	bool loadBackground();
 	bool loadParallaxLayer();

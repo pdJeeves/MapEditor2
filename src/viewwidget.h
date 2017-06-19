@@ -2,6 +2,7 @@
 #define VIEWWIDGET_H
 
 #include <QWidget>
+#include <QTimer>
 
 class MainWindow;
 
@@ -10,9 +11,13 @@ class ViewWidget : public QWidget
 typedef QWidget super;
 
 	Q_OBJECT
+	QTimer timer;
+
 public:
 	explicit ViewWidget(QWidget *parent = 0);
 	MainWindow * window;
+
+	void needRepaint();
 
 	void mouseMoveEvent 		(QMouseEvent * event)	Q_DECL_OVERRIDE;
 	void mousePressEvent		(QMouseEvent * event)	Q_DECL_OVERRIDE;

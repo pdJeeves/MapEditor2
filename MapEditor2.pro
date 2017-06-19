@@ -13,37 +13,58 @@ INCLUDEPATH += \
 	../Kreatures/Engine/ \
 	../Kreatures/libFreetures/include/
 
-LIBS += -L/home/anyuser/Downloads/squish-1.11/ -lsquish -ldrm
+LIBS += -fPIC -lsquish -ldrm
+
 
 TARGET = MapEditor2
 TEMPLATE = app
 
 
-SOURCES += main.cpp\
-        mainwindow.cpp \
-    face.cpp \
-    vertex.cpp \
-    selection.cpp \
-    direction.cpp \
-    viewwidget.cpp \
-    backgroundimage.cpp \
-    background.cpp \
-    creaturesio.cpp \
-    mapeditor.cpp \
-    metaroomoffset.cpp
+SOURCES += src/main.cpp\
+		src/mainwindow.cpp \
+	src/face.cpp \
+	src/vertex.cpp \
+	src/selection.cpp \
+	src/direction.cpp \
+	src/viewwidget.cpp \
+	src/backgroundimage.cpp \
+	src/background.cpp \
+	src/creaturesio.cpp \
+	src/mapeditor.cpp \
+	src/metaroomoffset.cpp \
+	src/casting.cpp \
+	src/commandlist.cpp \
+	src/properties.cpp \
+    src/grabcommand.cpp \
+    src/insertioncommand.cpp \
+    src/permeabilitycommand.cpp \
+    src/slicecommand.cpp \
+    src/deletioncommand.cpp \
+    src/commandinterface.cpp \
+    src/roomtypecommand.cpp
 
-HEADERS  += mainwindow.h \
-    face.h \
-    vertex.h \
-    selection.h \
-    direction.h \
-    viewwidget.h \
-    backgroundimage.h \
-    byte_swap.h \
-    background.h \
-    creaturesio.h \
-    mapeditor.h \
-    metaroomoffset.h
+HEADERS  += src/mainwindow.h \
+	src/face.h \
+	src/vertex.h \
+	src/selection.h \
+	src/direction.h \
+	src/viewwidget.h \
+	src/backgroundimage.h \
+	src/byte_swap.h \
+	src/background.h \
+	src/creaturesio.h \
+	src/mapeditor.h \
+	src/metaroomoffset.h \
+	src/commandinterface.h \
+	src/commandlist.h \
+	src/properties.h \
+    src/grabcommand.h \
+    src/insertioncommand.h \
+    src/permeabilitycommand.h \
+    src/slicecommand.h \
+    src/deletioncommand.h \
+    src/roomtypecommand.h
 
-FORMS    += mainwindow.ui \
-    metaroomoffset.ui
+FORMS    += src/mainwindow.ui \
+	src/metaroomoffset.ui \
+	src/properties.ui

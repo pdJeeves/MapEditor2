@@ -20,8 +20,20 @@ typedef enum Corner
 } Corner;
 
 typedef std::pair<Corner, Corner>  EndPoint_t;
+typedef std::pair<Direction, Direction>  DirPair_t;
 
 EndPoint_t GetCorners(Direction);
 Corner GetOppositeCorner(Corner corner);
+DirPair_t GetOppositeEdges(Corner corner);
+Direction GetEdge(Corner a, Corner b);
+
+Corner ClockwiseCorner(Corner corner);
+Corner CounterClockwiseCorner(Corner corner);
+
+Corner EndCorner(Direction d);
+Corner StartCorner(Direction d);
+
+Direction ClockwiseEdge(Corner corner);
+Direction CounterClockwiseEdge(Corner corner);
 
 #endif // DIRECTION_H

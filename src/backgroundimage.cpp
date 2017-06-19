@@ -5,6 +5,8 @@
 #include <squish.h>
 #include "byte_swap.h"
 #include <iostream>
+#include <cmath>
+#include "mapeditor.h"
 
 //helper classes used by compression
 struct BLOCK_128
@@ -107,7 +109,7 @@ uint8_t BackgroundImage::getCompressionType(int x0, int y0)
 	{
 		if(compression_3 > 8 && compression_3 > compression_5)
 			return 3;
-		else if(compression_5 > 8 && compression_5 >= sqrt(compression_3)/2)
+		else if(compression_5 > 8 && compression_5 >= std::sqrt(compression_3)/2)
 			return 5;
 	}
 
@@ -283,7 +285,7 @@ std::vector<uint8_t> BackgroundImage::compressTile(int x0, int y0)
 	return compressDtx3(uncompressed_image, compression_type);
 }
 
-uint32_t BackgroundImage::write(FILE * file, QWidget * parent)
+uint32_t BackgroundImage::write(FILE * file, MainWindow * parent)
 {
 	if(image.isNull())
 	{
@@ -296,7 +298,7 @@ uint32_t BackgroundImage::write(FILE * file, QWidget * parent)
 	const uint32_t r = ftell(file);
 	fseek(file, image_offsets.size()*4, SEEK_CUR);
 
-	QProgressDialog progress(parent->tr("Compressing Map %1 Channel %2...").arg(map).arg(channel), 0L, 0, totalTiles(), parent);
+	QProgressDialog progress(parent->tr("Compressing %1 Layer, %2 Channel...").arg(parent->getMapName(map)).arg(parent->getChannelName(channel)), 0L, 0, totalTiles(), parent);
 
 	int32_t tiles_written = 0;
 
@@ -429,7 +431,7 @@ void BackgroundImage::clear()
 	image = QImage();
 }
 
-void BackgroundImage::read(FILE * file, uint16_t width, uint16_t height, uint32_t offset, QWidget * parent)
+void BackgroundImage::read(FILE * file, uint16_t width, uint16_t height, uint32_t offset, MainWindow * parent)
 {
 	clear();
 
@@ -450,9 +452,7 @@ void BackgroundImage::read(FILE * file, uint16_t width, uint16_t height, uint32_
 	fseek(file, offset, SEEK_SET);
 	fread(&image_offsets[0], sizeof(uint32_t), image_offsets.size(), file);
 
-	QProgressDialog progress(parent->tr("Loading Map %1 Channel %2...").arg(map).arg(channel), 0L, 0, image_offsets.size(), parent);
-
-	std::cerr << image.width() << "\t" << image.height() << std::endl;
+	QProgressDialog progress(parent->tr("Compressing %1 Layer, %2 Channel...").arg(parent->getMapName(map)).arg(parent->getChannelName(channel)), 0L, 0, image_offsets.size(), parent);
 
 	for(uint16_t tile = 0; tile < image_offsets.size(); ++tile)
 	{

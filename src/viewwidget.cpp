@@ -9,17 +9,28 @@
 #include <QWheelEvent>
 #include <QScrollBar>
 #include <QEvent>
+#include <cmath>
 
 ViewWidget::ViewWidget(QWidget *parent) :
 	QWidget(parent),
+	timer(this),
 	window(0L)
 {
+	timer.setSingleShot(true);
+	timer.setInterval(20);
+	connect(&timer, &QTimer::timeout, this, [this]() { repaint(); } );
 }
 
-
-void ViewWidget::mouseMoveEvent(QMouseEvent *)
+void ViewWidget::needRepaint()
 {
-	repaint();
+	if(!timer.isActive())
+		timer.start();
+}
+
+void ViewWidget::mouseMoveEvent(QMouseEvent * event)
+{
+	window->onMouseEvent(event);
+	needRepaint();
 }
 
 void ViewWidget::mousePressEvent(QMouseEvent * event)
@@ -68,9 +79,8 @@ void ViewWidget::wheelEvent(QWheelEvent * wheel)
 		if(wheel->orientation() == Qt::Vertical)
 		{
 			double angle = wheel->angleDelta().y();
-			double factor = pow(1.0015, angle);
-			window->zoom *= factor;
-			repaint();
+			double factor = std::pow(1.0015, angle);
+			window->changeZoom(factor);
 		}
 	}
 	else if(wheel->buttons() != Qt::MidButton)

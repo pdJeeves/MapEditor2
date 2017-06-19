@@ -13,13 +13,25 @@
 #include <QPainter>
 #include "byte_swap.h"
 #include "metaroomoffset.h"
+#include "mapeditor.h"
 
 MainWindow::MainWindow(QWidget *parent) :
 QMainWindow(parent),
+zoom(1.0),
+titleDirty(false),
+name(tr("Untitled")),
 escape(Qt::Key_Escape, this),
+autosaveTimer(this),
+commandList(static_cast<MapEditor*>(this)),
+propertiesWindow(static_cast<MapEditor*>(this), this),
+m_channel(this),
 ui(new Ui::MainWindow)
 {
-	zoom = 1.0;
+	autosaveTimer.setInterval(5*60*1000);
+	autosaveTimer.setTimerType(Qt::VeryCoarseTimer);
+	autosaveTimer.setSingleShot(true);
+
+	connect(&autosaveTimer, &QTimer::timeout, this, &MainWindow::documentSave);
 
 	ui->setupUi(this);
 
@@ -27,24 +39,89 @@ ui(new Ui::MainWindow)
 	ui->widget->setContextMenuPolicy(Qt::CustomContextMenu);
 	ui->widget->connect(ui->widget, &QWidget::customContextMenuRequested, this, &MainWindow::ShowContextMenu);
 
-	connect(ui->actionNew, &QAction::triggered, this, &MainWindow::documentNew);
+	connect(ui->actionNew, &QAction::triggered, []()
+	{
+		MapEditor * w = new MapEditor();
+		w->show();
+	});
+
 	connect(ui->actionOpen, &QAction::triggered, this, &MainWindow::documentOpen);
 	connect(ui->actionSave, &QAction::triggered, this, &MainWindow::documentSave);
 	connect(ui->actionSave_As, &QAction::triggered, this, &MainWindow::documentSaveAs);
+	connect(ui->actionClose, &QAction::triggered, this, &MainWindow::documentNew);
 
-	connect(ui->actionShow_Background, &QAction::triggered, this, [this]() { ui->widget->repaint(); } );
-	connect(ui->actionShow_Foreground, &QAction::triggered, this, [this]() { ui->widget->repaint(); } );
-	connect(ui->actionShow_Cutouts   , &QAction::triggered, this, [this]() { ui->widget->repaint(); } );
+	connect(ui->actionUndo, &QAction::triggered, this, &MainWindow::editUndo);
+	connect(ui->actionRedo, &QAction::triggered, this, &MainWindow::editRedo);
+
+	connect(ui->actionCut, &QAction::triggered, this, [this]() { editCopy(); editDelete(); } );
+	connect(ui->actionCopy, &QAction::triggered, this, &MainWindow::editCopy);
+	connect(ui->actionPaste, &QAction::triggered, this, &MainWindow::editPaste);
+	connect(ui->actionDelete, &QAction::triggered, this, &MainWindow::editDelete);
+
+	connect(ui->actionZoom_In, &QAction::triggered, this, [this]() { changeZoom(1/.8); });
+	connect(ui->actionZoom_Out, &QAction::triggered, this, [this]() { changeZoom(.8); });
+	connect(ui->actionActual_Size, &QAction::triggered, this, [this]()
+	{
+		zoom = 1.0;
+		ui->actionZoom_In->setEnabled(true);
+		ui->actionZoom_Out->setEnabled(true);
+	});
+
+	connect(ui->actionSelect_All, &QAction::triggered, this, &MainWindow::editSelectAll);
+
+	QMenu * menu;
+
+	for(auto i = 0; i < NO_MAPS; ++i)
+	{
+		menu = ui->menuLoad->addMenu(getMapName(i));
+
+		for(auto j = 0; j < NO_LAYERS; ++j)
+		{
+			menu->addAction(getChannelName(j), this, [&]() { openImage(i, j); });
+		}
+	}
+
+	ui->menuView->addSeparator();
+
+	for(auto i = 0; i < NO_MAPS; ++i)
+	{
+		QAction * action = ui->menuView->addAction(getMapName(i), ui->widget, &ViewWidget::needRepaint );
+		action->setCheckable(true);
+		action->setChecked(true);
+		m_layer.push_back(action);
+	}
+
+	ui->menuView->addSeparator();
+
+	for(auto i = 0; i < NO_MAPS; ++i)
+	{
+		QAction * action = ui->menuView->addAction(getMapName(i), ui->widget, &ViewWidget::needRepaint );
+		action->setCheckable(true);
+		action->setChecked(i == 0);
+		m_channel.addAction(action);
+	}
 
 	connect(ui->actionAddRoom, &QAction::triggered  , this, [this]() { onKeyPress(AddRoom); } );
-	connect(ui->actionSelect , &QAction::triggered  , this, [this]() { onKeyPress(Select ); } );
 	connect(ui->actionGrab	 , &QAction::triggered  , this, [this]() { onKeyPress(Grab   ); } );
 	connect(ui->actionExtrude, &QAction::triggered  , this, [this]() { onKeyPress(Extrude); } );
  	connect(ui->actionSlice  , &QAction::triggered  , this, [this]() { onKeyPress(SelectSlice  ); } );
 	connect(&escape			 , &QShortcut::activated, this, [this]() { onKeyPress(Cancel ); } );
 
-	connect(ui->horizontalScrollBar, &QScrollBar::valueChanged, [this](int) { ui->widget->repaint(); });
-	connect(ui->verticalScrollBar, &QScrollBar::valueChanged, [this](int) { ui->widget->repaint(); });
+	connect(ui->horizontalScrollBar, &QScrollBar::valueChanged, ui->widget, &ViewWidget::needRepaint);
+	connect(ui->verticalScrollBar, &QScrollBar::valueChanged, ui->widget, &ViewWidget::needRepaint);
+
+	connect(ui->actionAbout, &QAction::triggered, &QApplication::aboutQt);
+
+	connect(ui->actionProperties, &QAction::triggered, this, [this](bool checked)
+	{
+		if(checked == true)
+			propertiesWindow.show();
+		else
+			propertiesWindow.hide();
+	});
+
+	ui->actionUndo->setEnabled(false);
+	ui->actionRedo->setEnabled(false);
 
 	setGeometry(
 	    QStyle::alignedRect(
@@ -57,11 +134,88 @@ ui(new Ui::MainWindow)
 
 }
 
+void MainWindow::onCommandPushed()
+{
+	if(commandList.isDirty())
+	{
+		if(!titleDirty)
+		{
+			titleDirty = true;
+			setWindowTitle(tr("%1 * - Map Editor").arg(name));
+		}
+
+		if(!autosaveTimer.isActive() && !filename.isNull())
+		{
+			autosaveTimer.start();
+		}
+	}
+	else
+	{
+		if(titleDirty)
+		{
+			titleDirty = false;
+			setWindowTitle(tr("%1 - Map Editor").arg(name));
+		}
+
+		if(autosaveTimer.isActive())
+		{
+			autosaveTimer.stop();
+		}
+	}
+
+
+	ui->actionUndo->setEnabled(commandList.canRollBack());
+	ui->actionRedo->setEnabled(commandList.canRollForward());
+	ui->widget->needRepaint();
+}
+
 MainWindow::~MainWindow()
 {
 	delete ui;
 }
 
+QString MainWindow::getMapName(int i) const
+{
+	switch(i)
+	{
+	case 0: return tr("Background");
+	case 1: return tr("Foreground");
+	default: return tr("Cutaways");
+	}
+}
+
+QString MainWindow::getChannelName(int i) const
+{
+	switch(i)
+	{
+	case 0: return tr("Baked");
+	case 1: return tr("Albedo");
+	case 2: return tr("Normal");
+	case 3: return tr("Microsurface");
+	case 4: return tr("Metalicity");
+	default: return tr("Luminosity");
+
+	}
+}
+
+bool MainWindow::c2eWalls() const
+{
+	return ui->actionLock_Walls->isChecked();
+}
+
+void MainWindow::editUndo()
+{
+	commandList.rollBack();
+	ui->actionUndo->setEnabled(commandList.canRollBack());
+	ui->actionRedo->setEnabled(commandList.canRollForward());
+}
+
+void MainWindow::editRedo()
+{
+	commandList.rollForward();
+	ui->actionUndo->setEnabled(commandList.canRollBack());
+	ui->actionRedo->setEnabled(commandList.canRollForward());
+}
 
 static void initializeImageFileDialog(QFileDialog &dialog, QFileDialog::AcceptMode acceptMode)
 {
@@ -96,11 +250,53 @@ bool MainWindow::dimensionCheck(QSize size)
 	return false;
 }
 
+void MainWindow::changeZoom(float factor)
+{
+	zoom *= factor;
+	if(zoom <= .25)
+	{
+		zoom = .25;
+		ui->actionZoom_In->setEnabled(true);
+		ui->actionZoom_Out->setEnabled(false);
+	}
+	else if(zoom >= 4)
+	{
+		zoom = 4;
+		ui->actionZoom_In->setEnabled(false);
+		ui->actionZoom_Out->setEnabled(true);
+	}
 
+	ui->widget->repaint();
+}
 
+void MainWindow::closeEvent(QCloseEvent *event)
+{
+	if(documentClose())
+		QMainWindow::closeEvent(event);
+}
 
 bool MainWindow::documentClose()
 {
+	if(commandList.isDirty())
+	{
+		QMessageBox::StandardButton button = QMessageBox::question(
+			this,
+			QGuiApplication::applicationDisplayName(),
+			tr("Save changes to %1?").arg(name),
+			QMessageBox::Yes|QMessageBox::No|QMessageBox::Cancel,
+			QMessageBox::Cancel);
+
+		switch(button)
+		{
+		case QMessageBox::No:
+			return true;
+		case QMessageBox::Yes:
+			return documentSave();
+		default:
+			return false;
+		}
+	}
+
 	return true;
 }
 
@@ -108,9 +304,19 @@ bool MainWindow::documentNew()
 {
 	if(documentClose())
 	{
+		zoom = 1.0;
+
 		background.clear();
+		filename.clear();
+		name = tr("Untitled");
+		commandList.clear();
+
+		clearRooms();
+
+		return true;
 	}
-	return true;
+
+	return false;
 }
 
 void MainWindow::documentOpen()
@@ -130,13 +336,22 @@ void MainWindow::documentOpen()
 	if(!accepted)
 	{
 		background = std::move(temp);
-	}
-	else
-	{
-		filename.clear();
+		return;
 	}
 
-	ui->widget->repaint();
+	QString path = dialog.selectedFiles().first();
+
+	filename.clear();
+	clearRooms();
+	autosaveTimer.stop();
+
+	name = path.right(path.size() - (path.lastIndexOf('/')+1));
+
+	if(0 < path.indexOf("bak", path.lastIndexOf('.'), Qt::CaseInsensitive))
+		filename = path;
+
+	titleDirty = true;
+	commandList.clear();
 }
 
 bool MainWindow::loadBackground(const QString & name)
@@ -198,6 +413,7 @@ bool MainWindow::loadBackground(FILE * file, const QString & name)
 	else if(0 < name.indexOf("plx", dot, Qt::CaseInsensitive))
 	{
 		fread(&offsets[0], sizeof(uint32_t), 5, file);
+
 		background.readLayer(file, width, height, 0, &offsets[0], this);
 		return true;
 	}
@@ -265,19 +481,21 @@ void MainWindow::openImage(int map, int channel)
 	while (dialog.exec() == QDialog::Accepted && !loadImage(map, channel, dialog.selectedFiles().first())) {}
 }
 
-void MainWindow::documentSave()
+bool MainWindow::documentSave()
 {
 	if(!filename.isNull())
 	{
-		saveBackground(filename);
+		bool r = saveBackground(filename);
+		commandList.onSave();
+		return r;
 	}
 	else
 	{
-		documentSaveAs();
+		return documentSaveAs();
 	}
 }
 
-void MainWindow::documentSaveAs()
+bool MainWindow::documentSaveAs()
 {
 	QFileDialog dialog(this, tr("Save File"));
 	initializeBackgroundFileDialog(dialog, QFileDialog::AcceptSave);
@@ -285,10 +503,20 @@ void MainWindow::documentSaveAs()
 	bool accepted;
 	while ((accepted = (dialog.exec() == QDialog::Accepted)) && !saveBackground(dialog.selectedFiles().first())) {}
 
-	if(accepted)
-	{
-		filename = dialog.selectedFiles().first();
-	}
+	if(!accepted)
+		return false;
+
+	QString path = dialog.selectedFiles().first();
+
+	name = path.right(path.size() - (path.lastIndexOf('/')+1));
+
+	if(0 < path.indexOf("bak", path.lastIndexOf('.'), Qt::CaseInsensitive))
+		filename = path;
+
+	titleDirty = true;
+	commandList.onSave();
+
+	return true;
 }
 
 bool MainWindow::saveBackground(const QString & name)
@@ -317,7 +545,7 @@ bool MainWindow::saveBackground(const QString & name)
 			return false;
 		}
 
-		bool r = exportCos(file, position, size, background, this);
+		bool r = exportCos(file, position, size, background, static_cast<MapEditor*>(this));
 		fclose(file);
 		return r;
 	}
@@ -445,17 +673,20 @@ void MainWindow::draw(QPainter & painter)
 
 bool MainWindow::showBackground(int i) const
 {
-	switch(i)
-	{
-	case 0: return ui->actionShow_Background->isChecked();
-	case 1: return ui->actionShow_Foreground->isChecked();
-	case 2: return ui->actionShow_Cutouts->isChecked();
-	}
-	return false;
+	return m_layer[i % m_layer.size()]->isChecked();
 }
 
 int MainWindow::showMapping() const
 {
+	QList<QAction*> list = m_channel.actions();
+	int i = 0;
+
+	for(auto j = list.begin(); j != list.end(); ++i, ++j)
+	{
+		if((*j)->isChecked())
+			return i;
+	}
+
 	return 0;
 }
 
