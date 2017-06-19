@@ -21,6 +21,8 @@ zoom(1.0),
 titleDirty(false),
 name(tr("Untitled")),
 escape(Qt::Key_Escape, this),
+xKey(Qt::Key_X, this),
+yKey(Qt::Key_Y, this),
 autosaveTimer(this),
 commandList(static_cast<MapEditor*>(this)),
 propertiesWindow(static_cast<MapEditor*>(this), this),
@@ -65,6 +67,7 @@ ui(new Ui::MainWindow)
 		zoom = 1.0;
 		ui->actionZoom_In->setEnabled(true);
 		ui->actionZoom_Out->setEnabled(true);
+		ui->widget->needRepaint();
 	});
 
 	connect(ui->actionSelect_All, &QAction::triggered, this, &MainWindow::editSelectAll);
@@ -106,6 +109,8 @@ ui(new Ui::MainWindow)
 	connect(ui->actionExtrude, &QAction::triggered  , this, [this]() { onKeyPress(Extrude); } );
  	connect(ui->actionSlice  , &QAction::triggered  , this, [this]() { onKeyPress(SelectSlice  ); } );
 	connect(&escape			 , &QShortcut::activated, this, [this]() { onKeyPress(Cancel ); } );
+	connect(&xKey			 , &QShortcut::activated, this, [this]() { onKeyPress(LockX ); } );
+	connect(&yKey			 , &QShortcut::activated, this, [this]() { onKeyPress(LockY ); } );
 
 	connect(ui->horizontalScrollBar, &QScrollBar::valueChanged, ui->widget, &ViewWidget::needRepaint);
 	connect(ui->verticalScrollBar, &QScrollBar::valueChanged, ui->widget, &ViewWidget::needRepaint);
@@ -392,7 +397,7 @@ bool MainWindow::loadBackground(FILE * file, const QString & name)
 	}
 
 	uint16_t width, height;
-	std::array<uint32_t, 32> offsets;
+	std::array<uint32_t, 64> offsets;
 	offsets.fill(0);
 
 	fread(&width, 2, 1, file);
@@ -406,8 +411,9 @@ bool MainWindow::loadBackground(FILE * file, const QString & name)
 		fread(&offsets[0], sizeof(uint32_t), offsets.size(), file);
 
 		background.readLayer(file, width, height, 0, &offsets[0], this);
-		background.readLayer(file, width, height, 1, &offsets[5], this);
-		background.readLayer(file, width, height, 2, &offsets[10], this);
+		background.readLayer(file, width, height, 1, &offsets[8], this);
+		background.readLayer(file, width, height, 2, &offsets[16], this);
+		readRooms(file, &offsets[32]);
 		return true;
 	}
 	else if(0 < name.indexOf("plx", dot, Qt::CaseInsensitive))
@@ -442,8 +448,7 @@ void MainWindow::initializeBackgroundFileDialog(QFileDialog &dialog, QFileDialog
 	}
 
 	if (acceptMode == QFileDialog::AcceptSave)
-		filters	<< "Kreatures Room Map (*.rmp)"
-				<< "c2e Room Map (*.cos)";
+		filters	<< "c2e Room Map (*.cos)";
 
 	dialog.setNameFilters(filters);
 
@@ -528,7 +533,7 @@ bool MainWindow::saveBackground(const QString & name)
 		int slash = name.lastIndexOf('/')+1;
 		QPoint position;
 		QSize size		   = background.dimensions();
-		QString background = name.mid(slash,(dot-1) - slash);
+		QString background = name.mid(slash,(dot) - slash);
 
 		MetaroomOffset dialog(this, background, position, size);
 		dialog.show();
@@ -583,7 +588,7 @@ bool MainWindow::saveBackground(FILE * file, const QString & name)
 	fwrite(&width, 2, 1, file);
 	fwrite(&height, 2, 1, file);
 
-	std::array<uint32_t, 32> offsets;
+	std::array<uint32_t, 64> offsets;
 	offsets.fill(0);
 
 	uint32_t offset_pos = ftell(file);
@@ -592,8 +597,9 @@ bool MainWindow::saveBackground(FILE * file, const QString & name)
 	if(0 < name.indexOf("bak", dot, Qt::CaseInsensitive))
 	{
 		background.writeLayer(file, 0, &offsets[0], this);
-		background.writeLayer(file, 1, &offsets[5], this);
-		background.writeLayer(file, 2, &offsets[10], this);
+		background.writeLayer(file, 1, &offsets[8], this);
+		background.writeLayer(file, 2, &offsets[16], this);
+		writeRooms(file, &offsets[32]);
 	}
 	else if(0 < name.indexOf("plx", dot, Qt::CaseInsensitive))
 	{
@@ -645,9 +651,6 @@ QPoint MainWindow::getMousePosition()
 	QPoint offset = getScreenOffset();
 
 	pos += offset;
-
-	pos.setX(std::max(0, std::min(pos.x(), dimensions.width())));
-	pos.setY(std::max(0, std::min(pos.y(), dimensions.height())));
 
 	return pos;
 }

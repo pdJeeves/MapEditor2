@@ -25,7 +25,9 @@ typedef enum CurrentMode
 	Extrude,
 	SelectSlice,
 	PerformSlice,
-	Paste
+	Paste,
+	LockX,
+	LockY
 } CurrentMode;
 
 /**
@@ -47,6 +49,8 @@ friend class Properties;
 	QString filename;
 	QString name;
 	QShortcut escape;
+	QShortcut xKey;
+	QShortcut yKey;
 	QTimer autosaveTimer;
 
 public:
@@ -79,6 +83,9 @@ public:
 
 	QString getMapName(int) const;
 	QString getChannelName(int) const;
+
+	virtual void readRooms(FILE*,uint32_t*) = 0;
+	virtual void writeRooms(FILE*,uint32_t*) = 0;
 
 private:
 	bool documentNew();

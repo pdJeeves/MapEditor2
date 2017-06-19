@@ -48,4 +48,8 @@ void MetaroomOffset::validateForm()
 		&&  ui->posy->hasAcceptableInput()
 		&&  ui->background->hasAcceptableInput()
 	);
+
+	position.setX(ui->posx->text().toInt());
+	position.setY(ui->posy->text().toInt());
+	background = ui->background->text();
 }

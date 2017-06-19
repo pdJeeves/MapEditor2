@@ -8,6 +8,8 @@
 #include "vertex.h"
 #include <unordered_map>
 #include "mapeditor.h"
+#include <cassert>
+#include <iostream>
 
 struct image_header
 {
@@ -286,8 +288,20 @@ QImage importSpr(FILE * file, MainWindow * parent)
 
 bool exportSpr(const QImage & image, FILE * file, MainWindow *)
 {
-	QImage img = image.convertToFormat(QImage::Format_Indexed8, getC1Palette(),
+	if(image.isNull())
+	{
+		return false;
+	}
+
+	std::cerr << image.width() << ", " << image.height() << std::endl;
+
+	QImage img2 = image.convertToFormat(QImage::Format_ARGB32);
+	QImage img = img2.convertToFormat(QImage::Format_Indexed8, getC1Palette(),
 		Qt::DiffuseDither | Qt::PreferDither | Qt::NoOpaqueDetection);
+
+	std::cerr << img.width() << ", " << img.height() << std::endl;
+
+	assert(!img.isNull());
 
 	uint16_t length = byte_swap((uint16_t) (58*8));
 	fwrite(&length, 2, 1, file);
@@ -309,11 +323,14 @@ bool exportSpr(const QImage & image, FILE * file, MainWindow *)
 
 	for(uint16_t i = 0; i < length; ++i)
 	{
+		int x0 = (i / 8) * 144;
+		int y0 = (i % 8) * 150;
+
 		for(int y = 0; y < 150; ++y)
 		{
 			for(int x = 0; x < 144; ++x)
 			{
-				uint8_t t = img.pixelIndex(x, y);
+				uint8_t t = img.pixelIndex(x0 + x, y0 + y);
 				fwrite(&t, 1, 1, file);
 			}
 		}
@@ -322,8 +339,9 @@ bool exportSpr(const QImage & image, FILE * file, MainWindow *)
 	return true;
 }
 
-bool ExportS16Frames(FILE * file, const QImage & image, int /*width*/, int height, int length, int img_width, int img_height, MainWindow *)
+bool ExportS16Frames(FILE * file, const QImage & image, int width, int height, int img_width, int img_height, MainWindow *)
 {
+	int length = width*height;
 	int base_offset = 6 + 8*length;
 	uint16_t w = byte_swap((uint16_t) img_width);
 	uint16_t h = byte_swap((uint16_t) img_height);
@@ -335,21 +353,26 @@ bool ExportS16Frames(FILE * file, const QImage & image, int /*width*/, int heigh
 		fwrite(&w, 2, 1, file);
 		fwrite(&h, 2, 1, file);
 
-		base_offset += length*2;
+		base_offset += img_width*img_height*2;
 	}
 
 	for(int i = 0; i < length; ++i)
 	{
+		int x0 = (i/height)*img_width;
+		int y0 = (i%height)*img_height;
+
 		for(int y = 0; y < img_width; ++y)
 		{
 			for(int x = 0; x < img_height; ++x)
 			{
-				QRgb px = image.pixel((i/height)*img_width + x,
-									  (i%height)*img_height+ y);
+				QRgb px = image.pixel(x0 + x, y0 + y);
 
-				uint16_t color = ((qRed  (px) << 8) & 0xF800)
-							   | ((qGreen(px) << 5) & 0x07E0)
-							   | ((qBlue (px) >> 3) & 0x001F);
+				uint8_t red   = qRed(px) >> 3;
+				uint8_t green = qGreen(px) >> 2;
+				uint8_t blue  = qBlue(px) >> 3;
+
+				uint16_t color = (red << 11) | (green << 5) | blue;
+
 				color = byte_swap(color);
 				fwrite(&color, 2, 1, file);
 			}
@@ -367,7 +390,7 @@ bool exportS16(const QImage & image, FILE * file, MainWindow * parent)
 	fread(&RGBformat, 4, 1, file);
 	fread(&length, 2, 1, file);
 
-	return ExportS16Frames(file, image, 58, 16, 58*16, 144, 150, parent);
+	return ExportS16Frames(file, image, 58, 16, 144, 150, parent);
 }
 
 bool exportBlk(const QImage & image, QSize size, FILE * file, MainWindow * parent)
@@ -386,7 +409,7 @@ bool exportBlk(const QImage & image, QSize size, FILE * file, MainWindow * paren
 	fwrite(&height, 2, 1, file);
 	fwrite(&length, 2, 1, file);
 
-	return ExportS16Frames(file, image, width, height, length, 128, 128, parent);
+	return ExportS16Frames(file, image, width, height, 128, 128, parent);
 }
 
 bool exportCos(FILE * file, QPoint position, QSize size, QString background, MapEditor * window)

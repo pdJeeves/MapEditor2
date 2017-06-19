@@ -127,22 +127,12 @@ bool Selection::getEdges(List_t & r, QPoint pos) const
 {
 	for(auto i = allFaces.begin(); i != allFaces.end(); ++i)
 	{
-//if near 2 edges, we're probably trying to select a face.
-		bool near_edge = false;
-
 		for(int j = 0; j < 4; ++j)
 		{
 			EndPoint_t e = GetCorners((Direction) j);
 
 			if(distSquaredToLine((*i)->verticies[e.first], (*i)->verticies[e.second], pos) < 36)
 			{
-				if(near_edge)
-				{
-					r.clear();
-					return false;
-				}
-
-				near_edge = true;
 				r.push_back(&((*i)->verticies[e.first]));
 				r.push_back(&((*i)->verticies[e.second]));
 			}
@@ -183,8 +173,9 @@ float Selection::distSquaredToLine(QPoint begin, QPoint end, QPoint p)
 {
 	float l2 = distSquared(begin, end);
 	if(!l2) return distSquared(begin, p);
-	float t = std::max(0.f, std::min(1.f, dotProduct(p - begin, end - begin) / 12));
-	return distSquared(p, QPoint(begin.x() + t * (end.x() - begin.x()), begin.y() + t * (end.y() - begin.y()) ));
+	float t = std::max(0.f, std::min(1.f, dotProduct(p - begin, end - begin) / l2));
+	float d = distSquared(p, QPoint(begin.x() + t * (end.x() - begin.x()), begin.y() + t * (end.y() - begin.y()) ));
+	return d;
 }
 
 float Selection::distSquared(QPoint begin, QPoint end)

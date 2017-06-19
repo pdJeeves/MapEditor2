@@ -2,8 +2,7 @@
 #define BYTESWAP_H
 
 template<typename T>
-static inline __attribute((always_inline))
-T byte_swap(T t)
+static inline T byte_swap(T t)
 {
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
 	return t;

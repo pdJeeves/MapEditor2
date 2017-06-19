@@ -26,6 +26,7 @@ friend class Properties;
 
 	bool lock_x;
 	bool lock_y;
+	bool wall_lock;
 	bool repainted;
 
 	QMessageBox::StandardButton isTranslationValid();
@@ -42,6 +43,9 @@ friend class Properties;
 	};
 
 	static std::vector<ClipboardFace> & smClipboard();
+
+	void readRooms(FILE*,uint32_t*);
+	void writeRooms(FILE*,uint32_t*);
 
 public:
 	Selection selection;

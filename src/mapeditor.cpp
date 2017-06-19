@@ -10,6 +10,8 @@
 #include "slicecommand.h"
 #include "insertioncommand.h"
 #include "deletioncommand.h"
+#include "byte_swap.h"
+#include <unordered_map>
 
 #undef min
 #undef max
@@ -62,6 +64,9 @@ void MapEditor::onLeftDown(QMouseEvent* event)
 		break;
 	case AddRoom:
 	{
+		endPos.setX(std::max(0, std::min(endPos.x(), dimensions().width())));
+		endPos.setY(std::max(0, std::min(endPos.y(), dimensions().height())));
+
 		int x = std::min(startPos.x(), endPos.x());
 		int y = std::min(startPos.y(), endPos.y());
 
@@ -275,7 +280,8 @@ void MapEditor::onGrab()
 
 	if(c2eWalls())
 	{
-		lock_x = !selection.canMoveHorizontally();
+		wall_lock = !selection.canMoveHorizontally();
+		lock_x = wall_lock;
 	}
 
 	if(mode != Paste)
@@ -369,66 +375,82 @@ void  MapEditor::onCancel()
 
 void MapEditor::onKeyPress(CurrentMode m)
 {
-	if(m == Cancel)
+	switch(m)
 	{
+	case Cancel:
 		if(mode == Grab)
 			onCancelGrab();
 		else if(mode == Paste)
 			onCancelPaste();
 		else
 			onCancel();
-
 		return;
+	case LockX:
+		lock_y ^= 1;
+		return;
+	case LockY:
+		if(!wall_lock)
+			lock_x ^= 1;
+		return;
+	default:
+		break;
 	}
 
 	if(mode != Cancel)
-	{
 		return;
-	}
 
 	startPos = getMousePosition();
 	endPos = startPos;
 
-	if(m == AddRoom)
+
+	switch(m)
 	{
+	case AddRoom:
+	{
+		startPos.setX(std::max(0, std::min(startPos.x(), dimensions().width())));
+		startPos.setY(std::max(0, std::min(startPos.y(), dimensions().height())));
+
 		if(selection.isValidPosition(startPos))
 		{
 			ui->widget->setMouseTracking(true);
 			mode = AddRoom;
 		}
-	}
-
-	if(m == SelectSlice)
-	{
+	} break;
+	case Select:
+		ui->widget->setMouseTracking(true);
+		mode = Select;
+		break;
+	case SelectSlice:
 		ui->widget->setMouseTracking(true);
 		mode = SelectSlice;
-	}
-
-	if(m == Extrude
-	&& selection.isExtrudable())
-	{
-		std::list<Vertex*> list;
-
-		int N = selection.allFaces.size();
-		for(int i = 0; i < N; ++i)
+		break;
+	case Extrude:
+		if(selection.isExtrudable())
 		{
-			selection.allFaces[i]->extrude(list);
-		}
+			std::list<Vertex*> list;
 
-		if(list.size())
+			int N = selection.allFaces.size();
+			for(int i = 0; i < N; ++i)
+			{
+				selection.allFaces[i]->extrude(list);
+			}
+
+			if(list.size())
+			{
+				selection.selectVerticies(std::move(list), Qt::NoModifier);
+				ui->widget->setMouseTracking(true);
+				onGrab();
+				mode = Paste;
+			}
+		} break;
+	case Grab:
+		if(selection.verts.size())
 		{
-			selection.selectVerticies(std::move(list), Qt::NoModifier);
 			ui->widget->setMouseTracking(true);
 			onGrab();
-			mode = Paste;
-		}
-	}
-
-	if(m == Grab && selection.verts.size())
-	{
-		ui->widget->setMouseTracking(true);
-
-		onGrab();
+		} break;
+	default:
+		break;
 	}
 }
 
@@ -547,6 +569,12 @@ void MapEditor::draw(QPainter & painter)
 
 		delta = selection.adjustDelta(delta, background);
 
+		if(QApplication::keyboardModifiers() & Qt::ControlModifier)
+		{
+			delta.setX(delta.x() - delta.x() % 10);
+			delta.setY(delta.y() - delta.y() % 10);
+		}
+
 		for(auto i = selection.verts.begin(); i != selection.verts.end(); ++i)
 		{
 			**i = (*i)->stored + delta;
@@ -650,4 +678,164 @@ void MapEditor::editSelectAll()
 	}
 
 	selection.selectVerticies(std::move(list), Qt::NoModifier);
+	ui->widget->needRepaint();
+}
+
+void MapEditor::readRooms(FILE* file,uint32_t* offsets)
+{
+	uint32_t length;
+
+	if(offsets[0] == 0)
+		return;
+
+//read rooms
+	fseek(file, byte_swap(offsets[0]), SEEK_SET);
+	fread(&length, 1, 4, file);
+	length = byte_swap(length);
+
+	selection.allFaces.resize(length, 0L);
+
+	for(uint32_t i = 0; i < length; ++i)
+	{
+		uint32_t p[8];
+		fread(p, 8, 4, file);
+
+		QPoint v[4];
+		for(int j = 0; j < 4; ++j)
+			v[j] = QPoint(byte_swap(p[j*2]), byte_swap(p[j*2+1]));
+
+		uint8_t room_type;
+		fread(&room_type, 1, 1, file);
+
+		selection.allFaces[i] = new Face(v, room_type);
+
+		selection.allFaces[i]->setFaceList(&(selection.allFaces));
+	}
+
+	if(offsets[1] == 0)
+		return;
+//read doors
+	fseek(file, byte_swap(offsets[1]), SEEK_SET);
+	fread(&length, 1, 4, file);
+	length = byte_swap(length);
+
+	for(uint32_t i = 0; i < length; ++i)
+	{
+		uint32_t rooms[2];
+		uint8_t  direction;
+		uint8_t  perm;
+
+		fread(rooms, 2, 4, file);
+		fread(&direction, 1, 1, file);
+		fread(&perm, 1, 1, file);
+
+		selection.allFaces[byte_swap(rooms[0])]->setAdjacent((Direction) direction, selection.allFaces[byte_swap(rooms[1])]);
+		selection.allFaces[byte_swap(rooms[0])]->setPermeability((Direction) direction, perm);
+	}
+}
+
+void MapEditor::writeRooms(FILE* file,uint32_t* offset)
+{
+	if(selection.allFaces.size() == 0)
+		return;
+
+	struct RunData
+	{
+		std::vector<Face*> run;
+		int max_x;
+		int max_y;
+	};
+
+	std::vector<RunData*> runs;
+
+	for(auto i = selection.allFaces.begin(); i != selection.allFaces.end(); ++i)
+	{
+		if((*i)->adjacent[Left])
+			continue;
+
+		RunData * run = new RunData();
+		run->max_x = 0;
+		run->max_y = 0;
+
+		runs.push_back(run);
+
+		for(Face * current = *i; current; current = current->adjacent[Right])
+		{
+			run->run.push_back(current);
+
+			for(int i = 0; i < 4; ++i)
+			{
+				run->max_x = std::max(run->max_x, current->verticies[i].x);
+				run->max_y = std::max(run->max_y, current->verticies[i].y);
+			}
+		}
+	}
+
+	std::sort(runs.begin(), runs.end(), [](const RunData * a, const RunData * b)
+	{
+		if(a->max_y != b->max_y)
+			return a->max_y < b->max_y;
+
+		return a->max_x < b->max_x;
+	});
+
+	std::unordered_map<Face*, int> map;
+
+	offset[0] = ftell(file);
+	uint32_t length = byte_swap(selection.allFaces.size());
+	fwrite(&length, 1, 4, file);
+
+	length = 0;
+
+	for(auto i = runs.begin(); i != runs.end(); ++i)
+	{
+		std::vector<Face*> & run = (*i)->run;
+
+		for(auto i = run.begin(); i != run.end(); ++i)
+		{
+			uint32_t p[8];
+
+			map.insert(std::make_pair(*i, map.size()));
+
+			for(int j = 0; j < 4; ++j)
+			{
+				p[j*2]   = byte_swap((*i)->verticies[j].x);
+				p[j*2+1] = byte_swap((*i)->verticies[j].y);
+
+				if((*i)->adjacent[j]) ++length;
+			}
+
+			fwrite(p, 8, 4, file);
+			fwrite(&((*i)->room_type), 1, 1, file);
+		}
+	}
+
+	if(!length)
+		return;
+
+	length = byte_swap(selection.allFaces.size() >> 1);
+
+	offset[1] = ftell(file);
+
+	fwrite(&length, 1, 4, file);
+
+	uint32_t rooms[2];
+	uint8_t  direction;
+	uint8_t  perm;
+
+	for(auto i = selection.allFaces.begin(); i != selection.allFaces.end(); ++i)
+	{
+		for(int j = 0; j < 2; ++j)
+		{
+			direction = j? Down : Right;
+
+			rooms[0] = byte_swap(map[*i]);
+			rooms[1] = byte_swap(map[(*i)->adjacent[direction]]);
+			perm = (*i)->permeability[direction];
+
+			fwrite(rooms, 2, 4, file);
+			fwrite(&direction, 1, 1, file);
+			fwrite(&perm, 1, 1, file);
+		}
+	}
 }

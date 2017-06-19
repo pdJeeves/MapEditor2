@@ -272,16 +272,7 @@ bool Face::continueSplit(float & t1, Direction dir) const
 static
 float InterpolateValue(int a, int b, float ratio)
 {
-	if(a > b)
-	{
-		return (a - b) * ratio + b;
-	}
-	if(a < b)
-	{
-		return (b - a) * ratio + a;
-	}
-
-	return a;
+	return (b - a) * ratio + a;
 }
 
 QPoint Face::interpolatePoint(int i, float ratio)
@@ -487,6 +478,10 @@ void Face::tryConnectEdge(Direction e)
 {
 	for(auto i = m_faces->begin(); i != m_faces->end(); ++i)
 	{
+		if(*i == this
+		|| (*i)->adjacent[e^1])
+			continue;
+
 		if(isOppositeEdgeAdjacent(**i, e))
 		{
 			adjacent[e] = *i;
@@ -726,9 +721,6 @@ bool doSegmentsOverlap(QPoint a1, QPoint a2, QPoint b1, QPoint b2)
 
 bool Face::isOppositeEdgeAdjacent(const Face & face, int i) const
 {
-	if(adjacent[i] || face.adjacent[i^1])
-		return false;
-
 	EndPoint_t e0 = GetCorners((Direction) i);
 	EndPoint_t e1 = GetCorners((Direction) (i^1));
 
@@ -742,11 +734,18 @@ void Face::searchForDoors(Direction d)
 	if(!m_faces)
 		return;
 
+	if(adjacent[d]
+	&& adjacent[d]->m_faces == m_faces
+	&& isOppositeEdgeAdjacent(*adjacent[d], d))
+		return;
+
 	Face * face = 0L;
 
 	for(auto i = m_faces->begin(); i != m_faces->end(); ++i)
 	{
-		if(*i == this) continue;
+		if(*i == this
+		|| (*i)->adjacent[d^1])
+			continue;
 
 		if(isOppositeEdgeAdjacent(**i, d))
 		{

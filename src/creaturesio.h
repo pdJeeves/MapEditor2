@@ -1,8 +1,8 @@
 #ifndef CREATURESIO_H
 #define CREATURESIO_H
 #include <QImage>
+#include <cstdio>
 
-typedef struct _IO_FILE FILE;
 class MainWindow;
 class MapEditor;
 

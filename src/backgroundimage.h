@@ -2,9 +2,9 @@
 #define BACKGROUNDIMAGE_H
 #include <QImage>
 #include <vector>
+#include <cstdio>
 
 class MainWindow;
-typedef struct _IO_FILE FILE;
 
 class BackgroundImage
 {
