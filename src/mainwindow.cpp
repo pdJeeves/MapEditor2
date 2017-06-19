@@ -14,6 +14,7 @@
 #include "byte_swap.h"
 #include "metaroomoffset.h"
 #include "mapeditor.h"
+#include <array>
 
 MainWindow::MainWindow(QWidget *parent) :
 QMainWindow(parent),
