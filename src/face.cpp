@@ -164,6 +164,54 @@ void Face::computeBounds()
 	bounds[4] = QRect(min_x, min_y, max_x - min_x, max_y - min_y);
 }
 
+
+typedef std::pair<float, QPoint> Pair_t;
+typedef std::pair<float, int> IndexPair_t;
+
+static
+int ComparePair(const void * a, const void * b)
+{
+	float r = ((const Pair_t *) a)->first - ((const Pair_t *) b)->first;
+	return r == 0? 0 : r < 0? -1 : 1;
+}
+
+static
+int CompareIndexPair(const void * a, const void * b)
+{
+	float r = ((const IndexPair_t *) a)->first - ((const IndexPair_t *) b)->first;
+	return r == 0? 0 : r < 0? -1 : 1;
+}
+
+static
+std::pair<QPoint, QPoint> GetMidSegment(QPoint a1, QPoint a2, QPoint b1, QPoint b2)
+{
+	QPoint v[4] = { a1, b1, a2, b2 };
+
+//always are all in 1 quadrant.
+	IndexPair_t a[4];
+	a[0] = IndexPair_t(std::atan2(a1.y(), a1.x()), 0);
+	a[1] = IndexPair_t(std::atan2(a2.y(), a2.x()), 2);
+
+	if(a1 == b1)
+		a[2] = a[0];
+	else
+		a[2] = IndexPair_t(std::atan2(b1.y(), b1.x()), 1);
+
+	if(a2 == b2)
+		a[3] = a[1];
+	else
+		a[3] = IndexPair_t(std::atan2(b2.y(), b2.x()), 3);
+
+	qsort(a, 4, sizeof(IndexPair_t), CompareIndexPair);
+
+	if(a[1].second >  a[2].second)
+		return std::make_pair(v[a[2].second], v[a[1].second]);
+
+	return std::make_pair(v[a[1].second], v[a[2].second]);
+}
+
+
+#if 0
 typedef std::pair<float, QPoint> Pair_t;
 
 static
@@ -176,6 +224,7 @@ int ComparePair(const void * a, const void * b)
 static
 std::pair<QPoint, QPoint> GetMidSegment(QPoint a1, QPoint a2, QPoint b1, QPoint b2)
 {
+
 //always are all in 1 quadrant.
 	Pair_t a[4];
 	a[0] = Pair_t(std::atan2(a1.y(), a1.x()), a1);
@@ -194,21 +243,7 @@ std::pair<QPoint, QPoint> GetMidSegment(QPoint a1, QPoint a2, QPoint b1, QPoint 
 	qsort(a, 4, sizeof(Pair_t), ComparePair);
 	return std::make_pair(a[1].second, a[2].second);
 }
-/*
-static
-std::pair<QPoint, QPoint> getMidSegment(QPoint a1, QPoint a2, QPoint b1, QPoint b2)
-{
-//always are all in 1 quadrant.
-	Pair_t a[4];
-	a[0] = Pair_t(atan2(a1.y(), a1.x()), a1);
-	a[1] = Pair_t(atan2(a2.y(), a2.x()), a2);
-	a[2] = Pair_t(atan2(b1.y(), b1.x()), b1);
-	a[3] = Pair_t(atan2(b2.y(), b2.x()), b2);
-
-	qsort(a, 4, sizeof(Pair_t), ComparePair);
-	return std::make_pair(a[2].second, a[1].second);
-}
-*/
+#endif
 
 std::pair<QPoint, QPoint> Face::getMidSegment(int i) const
 {

@@ -729,8 +729,14 @@ void MapEditor::readRooms(FILE* file,uint32_t* offsets)
 		fread(&direction, 1, 1, file);
 		fread(&perm, 1, 1, file);
 
-		selection.allFaces[byte_swap(rooms[0])]->setAdjacent((Direction) direction, selection.allFaces[byte_swap(rooms[1])]);
-		selection.allFaces[byte_swap(rooms[0])]->setPermeability((Direction) direction, perm);
+
+		std::cerr << "door " << rooms[0] << " " << rooms[1] << " " << (int) perm << std::endl;
+
+		if(rooms[0] && rooms[1])
+		{
+			selection.allFaces[byte_swap(rooms[0]-1)]->setAdjacent((Direction) direction, selection.allFaces[byte_swap(rooms[1]-1)]);
+			selection.allFaces[byte_swap(rooms[0]-1)]->setPermeability((Direction) direction, perm);
+		}
 	}
 }
 
@@ -780,6 +786,7 @@ void MapEditor::writeRooms(FILE* file,uint32_t* offset)
 	});
 
 	std::unordered_map<Face*, int> map;
+	map.insert(std::pair<Face*, int>(0,0));
 
 	offset[0] = ftell(file);
 	uint32_t length = byte_swap(selection.allFaces.size());
@@ -813,7 +820,7 @@ void MapEditor::writeRooms(FILE* file,uint32_t* offset)
 	if(!length)
 		return;
 
-	length = byte_swap(selection.allFaces.size() >> 1);
+	length = byte_swap((uint32_t) (selection.allFaces.size() *2));
 
 	offset[1] = ftell(file);
 
@@ -836,6 +843,8 @@ void MapEditor::writeRooms(FILE* file,uint32_t* offset)
 			fwrite(rooms, 2, 4, file);
 			fwrite(&direction, 1, 1, file);
 			fwrite(&perm, 1, 1, file);
+
+			std::cerr << "door " << rooms[0] << " " << rooms[1] << " " << (int) perm << std::endl;
 		}
 	}
 }

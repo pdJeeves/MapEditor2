@@ -430,6 +430,8 @@ bool MainWindow::loadBackground(FILE * file, const QString & name)
 
 void MainWindow::initializeBackgroundFileDialog(QFileDialog &dialog, QFileDialog::AcceptMode acceptMode)
 {
+	dialog.setAcceptMode(acceptMode);
+
 	QStringList filters;
 	filters << "Kreatures Background (*.bak)"
 			<< "Kreatures Layer (*.plx)";
