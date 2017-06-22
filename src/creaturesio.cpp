@@ -11,6 +11,7 @@
 #include <cassert>
 #include <iostream>
 
+
 struct image_header
 {
 	void read(FILE * file)
@@ -286,22 +287,20 @@ QImage importSpr(FILE * file, MainWindow * parent)
 	return image;
 }
 
-bool exportSpr(const QImage & image, FILE * file, MainWindow *)
+bool exportSpr(const QImage & img, FILE * file, MainWindow * window)
 {
-	if(image.isNull())
+	if(img.isNull())
 	{
 		return false;
 	}
 
-	std::cerr << image.width() << ", " << image.height() << std::endl;
-
-	QImage img2 = image.convertToFormat(QImage::Format_ARGB32);
-	QImage img = img2.convertToFormat(QImage::Format_Indexed8, getC1Palette(),
-		Qt::DiffuseDither | Qt::PreferDither | Qt::NoOpaqueDetection);
-
-	std::cerr << img.width() << ", " << img.height() << std::endl;
-
-	assert(!img.isNull());
+	if(img.format() != QImage::Format_Indexed8)
+	{
+		return exportSpr(
+			img.convertToFormat(QImage::Format_Indexed8, getC1Palette(),
+				Qt::DiffuseDither | Qt::PreferDither | Qt::NoOpaqueDetection),
+			file, window);
+	}
 
 	uint16_t length = byte_swap((uint16_t) (58*8));
 	fwrite(&length, 2, 1, file);
@@ -411,6 +410,7 @@ bool exportBlk(const QImage & image, QSize size, FILE * file, MainWindow * paren
 
 	return ExportS16Frames(file, image, width, height, 128, 128, parent);
 }
+
 
 bool exportCos(FILE * file, QPoint position, QSize size, QString background, MapEditor * window)
 {

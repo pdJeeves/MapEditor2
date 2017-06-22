@@ -85,7 +85,7 @@ uint8_t BackgroundImage::getCompressionType(int x0, int y0)
 	{
 		for(uint16_t x = 0; x < 256 && x + x0 < image.width(); x += 4)
 		{
-			switch(scanAlpha(x, y))
+			switch(scanAlpha(x+x0, y+y0))
 			{
 			case 1:
 				++compression_1;

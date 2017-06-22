@@ -44,7 +44,7 @@ void PermeabilityCommand::rollForward(MapEditor * window)
 {
 	for(auto i = op.begin(); i != op.end(); ++i)
 	{
-		i->face->setPermeability((Direction) i->edge, i->initPerm);
+		i->face->setPermeability((Direction) i->edge, finalPerm);
 	}
 
 	window->selection.setSelected(selected);
@@ -54,6 +54,6 @@ void PermeabilityCommand::initialize(MapEditor * window)
 {
 	for(auto i = op.begin(); i != op.end(); ++i)
 	{
-		i->face->setPermeability((Direction) i->edge, i->initPerm);
+		i->face->setPermeability((Direction) i->edge, finalPerm);
 	}
 }

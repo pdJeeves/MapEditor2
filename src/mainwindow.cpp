@@ -30,7 +30,7 @@ propertiesWindow(static_cast<MapEditor*>(this), this),
 m_channel(this),
 ui(new Ui::MainWindow)
 {
-	autosaveTimer.setInterval(5*60*1000);
+	autosaveTimer.setInterval(10*60*1000);
 	autosaveTimer.setTimerType(Qt::VeryCoarseTimer);
 	autosaveTimer.setSingleShot(true);
 
@@ -81,7 +81,7 @@ ui(new Ui::MainWindow)
 
 		for(auto j = 0; j < NO_LAYERS; ++j)
 		{
-			menu->addAction(getChannelName(j), this, [&]() { openImage(i, j); });
+			menu->addAction(getChannelName(j), this, [=]() { openImage(i, j); });
 		}
 	}
 
@@ -316,6 +316,7 @@ bool MainWindow::documentNew()
 		filename.clear();
 		name = tr("Untitled");
 		commandList.clear();
+		autosaveTimer.stop();
 
 		clearRooms();
 
@@ -331,7 +332,6 @@ void MainWindow::documentOpen()
 		return;
 
 	Background temp = std::move(background);
-	background.clear();
 
 	QFileDialog dialog(this, tr("Open File"));
 	initializeBackgroundFileDialog(dialog, QFileDialog::AcceptOpen);
@@ -347,21 +347,24 @@ void MainWindow::documentOpen()
 
 	QString path = dialog.selectedFiles().first();
 
-	filename.clear();
-	clearRooms();
-	autosaveTimer.stop();
-
 	name = path.right(path.size() - (path.lastIndexOf('/')+1));
 
 	if(0 < path.indexOf("bak", path.lastIndexOf('.'), Qt::CaseInsensitive))
 		filename = path;
 
 	titleDirty = true;
-	commandList.clear();
+	onCommandPushed();
 }
 
 bool MainWindow::loadBackground(const QString & name)
 {
+	zoom = 1.0;
+	background.clear();
+	filename.clear();
+	autosaveTimer.stop();
+	commandList.clear();
+	clearRooms();
+
 	FILE * file = fopen(name.toStdString().c_str(), "rb");
 	if(!file)
 	{
@@ -636,8 +639,8 @@ QPoint MainWindow::getScreenOffset()
 
 	s0 = s0 -  getScreenSize();
 
-	QPoint offset(ui->horizontalScrollBar->value() * s0.width() / 255,
-				  ui->verticalScrollBar->value() * s0.height() / 255);
+	QPoint offset(ui->horizontalScrollBar->value() * (100+s0.width()) / 255  - 50,
+				  ui->verticalScrollBar->value() * (100+s0.height()) / 255   - 50);
 
 	return offset;
 }
@@ -664,6 +667,9 @@ void MainWindow::draw(QPainter & painter)
 	QSize  size  = getScreenSize();
 
 	painter.scale(zoom, zoom);
+
+	size.setWidth(std::min(size.width() + offset.x(), background.dimensions().width()) - offset.x());
+	size.setHeight(std::min(size.height() + offset.y(), background.dimensions().height()) - offset.y());
 
 	for(int i = 0; i < NO_MAPS; ++i)
 	{

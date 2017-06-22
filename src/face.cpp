@@ -1138,6 +1138,12 @@ void Face::validateTranslation()
 
 int Face::isLocationValid() const
 {
+	if(std::max(verticies[TopLeft].x, verticies[BottomLeft].x)
+	> std::min(verticies[TopRight].x, verticies[BottomRight].x)) return -3;
+
+	if(std::max(verticies[TopLeft].y, verticies[TopRight].y)
+	> std::min(verticies[BottomLeft].y, verticies[BottomRight].y)) return -4;
+
 	for(int i = 0; i < 4; ++i)
 	{
 		if(!isClockwise(i))

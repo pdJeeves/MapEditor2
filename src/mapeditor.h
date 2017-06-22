@@ -27,7 +27,6 @@ friend class Properties;
 	bool lock_x;
 	bool lock_y;
 	bool wall_lock;
-	bool repainted;
 
 	QMessageBox::StandardButton isTranslationValid();
 	void onGrab();

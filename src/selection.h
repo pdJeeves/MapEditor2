@@ -45,7 +45,6 @@ public:
 
 	Face::List_t faces;
 	List_t verts;
-	Face::List_t selectedFaces;
 
 	bool isExtrudable() const;
 	bool canMoveHorizontally() const;

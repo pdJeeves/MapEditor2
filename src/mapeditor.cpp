@@ -40,7 +40,6 @@ MapEditor::MapEditor() :
 	mode = Cancel;
 	state = 0;
 	sliceFace=0L;
-	repainted = false;
 }
 
 void MapEditor::onLeftDown(QMouseEvent* event)
@@ -187,10 +186,19 @@ QMessageBox::StandardButton MapEditor::isTranslationValid()
 		{
 		default:
 			mesg = tr("At least one room position is invalid.");
+			break;
 		case -1:
-			mesg = tr("At least one room is not convex");
+			mesg = tr("At least one room is not convex (verticies not in clockwise order)");
+			break;
 		case -2:
 			mesg = tr("At least two rooms intersect");
+			break;
+		case -3:
+			mesg = tr("The maximum X coordinate of the left of a room may not exceed the miniumum X coordinate of the right");
+			break;
+		case -4:
+			mesg = tr("The maximum Y coordinate of the top of a room may not exceed the miniumum Y coordinate of the bottom");
+			break;
 		}
 
 		return QMessageBox::question(this,  QGuiApplication::applicationDisplayName(), mesg,  QMessageBox::Ok|QMessageBox::Cancel);
@@ -239,7 +247,21 @@ void MapEditor::onLeftUp(QMouseEvent* event)
 
 void MapEditor::clearRooms()
 {
+	mode = Cancel;
+	state = 0;
+	sliceFace = 0L;
+	lock_x = false;
+	lock_y = false;
+	wall_lock = false;
+	selection.faces.clear();
+	selection.verts.clear();
 
+	for(auto i = selection.allFaces.begin(); i != selection.allFaces.end(); ++i)
+	{
+		delete *i;
+	}
+
+	selection.allFaces.clear();
 }
 
 void MapEditor::onMouseEvent(QMouseEvent* event)
@@ -288,9 +310,12 @@ void MapEditor::onGrab()
 	{
 		mode = Grab;
 
-		for(auto i = selection.verts.begin(); i != selection.verts.end(); ++i)
+		for(auto i = selection.faces.begin(); i != selection.faces.end(); ++i)
 		{
-			(*i)->stored = **i;
+			for(int j = 0; j < 4; ++j)
+			{
+				(*i)->verticies[j].stored = (*i)->verticies[j];
+			}
 		}
 	}
 }
@@ -556,8 +581,6 @@ void MapEditor::editDelete()
 
 void MapEditor::draw(QPainter & painter)
 {
-	repainted |= (endPos != startPos);
-
 	QSize background = dimensions();
 
 	if(mode == Grab || mode == Paste || mode == Extrude)
@@ -693,7 +716,7 @@ void MapEditor::readRooms(FILE* file,uint32_t* offsets)
 	fread(&length, 1, 4, file);
 	length = byte_swap(length);
 
-	selection.allFaces.resize(length, 0L);
+	selection.allFaces.reserve(length);
 
 	for(uint32_t i = 0; i < length; ++i)
 	{
@@ -707,13 +730,11 @@ void MapEditor::readRooms(FILE* file,uint32_t* offsets)
 		uint8_t room_type;
 		fread(&room_type, 1, 1, file);
 
-		selection.allFaces[i] = new Face(v, room_type);
+		Face * face = new Face(v, room_type);
 
-		selection.allFaces[i]->setFaceList(&(selection.allFaces));
+		face->setFaceList(&(selection.allFaces));
 	}
 
-	if(offsets[1] == 0)
-		return;
 //read doors
 	fseek(file, byte_swap(offsets[1]), SEEK_SET);
 	fread(&length, 1, 4, file);
@@ -728,9 +749,6 @@ void MapEditor::readRooms(FILE* file,uint32_t* offsets)
 		fread(rooms, 2, 4, file);
 		fread(&direction, 1, 1, file);
 		fread(&perm, 1, 1, file);
-
-
-		std::cerr << "door " << rooms[0] << " " << rooms[1] << " " << (int) perm << std::endl;
 
 		if(rooms[0] && rooms[1])
 		{
@@ -752,37 +770,38 @@ void MapEditor::writeRooms(FILE* file,uint32_t* offset)
 		int max_y;
 	};
 
-	std::vector<RunData*> runs;
+	std::vector<RunData> runs;
 
 	for(auto i = selection.allFaces.begin(); i != selection.allFaces.end(); ++i)
 	{
 		if((*i)->adjacent[Left])
 			continue;
 
-		RunData * run = new RunData();
-		run->max_x = 0;
-		run->max_y = 0;
+		RunData run;
+		run.max_x = 0;
+		run.max_y = 0;
 
-		runs.push_back(run);
 
 		for(Face * current = *i; current; current = current->adjacent[Right])
 		{
-			run->run.push_back(current);
+			run.run.push_back(current);
 
 			for(int i = 0; i < 4; ++i)
 			{
-				run->max_x = std::max(run->max_x, current->verticies[i].x);
-				run->max_y = std::max(run->max_y, current->verticies[i].y);
+				run.max_x = std::max(run.max_x, current->verticies[i].x);
+				run.max_y = std::max(run.max_y, current->verticies[i].y);
 			}
 		}
+
+		runs.push_back(std::move(run));
 	}
 
-	std::sort(runs.begin(), runs.end(), [](const RunData * a, const RunData * b)
+	std::sort(runs.begin(), runs.end(), [](const RunData & a, const RunData & b)
 	{
-		if(a->max_y != b->max_y)
-			return a->max_y < b->max_y;
+		if(a.max_y != b.max_y)
+			return a.max_y < b.max_y;
 
-		return a->max_x < b->max_x;
+		return a.max_x < b.max_x;
 	});
 
 	std::unordered_map<Face*, int> map;
@@ -796,7 +815,7 @@ void MapEditor::writeRooms(FILE* file,uint32_t* offset)
 
 	for(auto i = runs.begin(); i != runs.end(); ++i)
 	{
-		std::vector<Face*> & run = (*i)->run;
+		std::vector<Face*> & run = i->run;
 
 		for(auto i = run.begin(); i != run.end(); ++i)
 		{
@@ -846,5 +865,15 @@ void MapEditor::writeRooms(FILE* file,uint32_t* offset)
 
 			std::cerr << "door " << rooms[0] << " " << rooms[1] << " " << (int) perm << std::endl;
 		}
+	}
+
+	offset[2] = ftell(file);
+	uint32_t run_length = byte_swap(runs.size());
+	fwrite(&run_length, 1, 4, file);
+
+	for(auto i = runs.begin(); i != runs.end(); ++i)
+	{
+		run_length = byte_swap(i->run.size());
+		fwrite(&run_length, 1, 4, file);
 	}
 }
