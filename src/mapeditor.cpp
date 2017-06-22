@@ -736,24 +736,27 @@ void MapEditor::readRooms(FILE* file,uint32_t* offsets)
 	}
 
 //read doors
-	fseek(file, byte_swap(offsets[1]), SEEK_SET);
-	fread(&length, 1, 4, file);
-	length = byte_swap(length);
-
-	for(uint32_t i = 0; i < length; ++i)
+	if(offsets[1])
 	{
-		uint32_t rooms[2];
-		uint8_t  direction;
-		uint8_t  perm;
+		fseek(file, byte_swap(offsets[1]), SEEK_SET);
+		fread(&length, 1, 4, file);
+		length = byte_swap(length);
 
-		fread(rooms, 2, 4, file);
-		fread(&direction, 1, 1, file);
-		fread(&perm, 1, 1, file);
-
-		if(rooms[0] && rooms[1])
+		for(uint32_t i = 0; i < length; ++i)
 		{
-			selection.allFaces[byte_swap(rooms[0]-1)]->setAdjacent((Direction) direction, selection.allFaces[byte_swap(rooms[1]-1)]);
-			selection.allFaces[byte_swap(rooms[0]-1)]->setPermeability((Direction) direction, perm);
+			uint32_t rooms[2];
+			uint8_t  direction;
+			uint8_t  perm;
+
+			fread(rooms, 2, 4, file);
+			fread(&direction, 1, 1, file);
+			fread(&perm, 1, 1, file);
+
+			if(rooms[0] && rooms[1])
+			{
+				selection.allFaces[byte_swap(rooms[0]-1)]->setAdjacent((Direction) direction, selection.allFaces[byte_swap(rooms[1]-1)]);
+				selection.allFaces[byte_swap(rooms[0]-1)]->setPermeability((Direction) direction, perm);
+			}
 		}
 	}
 }
@@ -836,34 +839,32 @@ void MapEditor::writeRooms(FILE* file,uint32_t* offset)
 		}
 	}
 
-	if(!length)
-		return;
-
-	length = byte_swap((uint32_t) (selection.allFaces.size() *2));
-
-	offset[1] = ftell(file);
-
-	fwrite(&length, 1, 4, file);
-
-	uint32_t rooms[2];
-	uint8_t  direction;
-	uint8_t  perm;
-
-	for(auto i = selection.allFaces.begin(); i != selection.allFaces.end(); ++i)
+	if(length)
 	{
-		for(int j = 0; j < 2; ++j)
+		length = byte_swap((uint32_t) (selection.allFaces.size() *2));
+
+		offset[1] = ftell(file);
+
+		fwrite(&length, 1, 4, file);
+
+		uint32_t rooms[2];
+		uint8_t  direction;
+		uint8_t  perm;
+
+		for(auto i = selection.allFaces.begin(); i != selection.allFaces.end(); ++i)
 		{
-			direction = j? Down : Right;
+			for(int j = 0; j < 2; ++j)
+			{
+				direction = j? Down : Right;
 
-			rooms[0] = byte_swap(map[*i]);
-			rooms[1] = byte_swap(map[(*i)->adjacent[direction]]);
-			perm = (*i)->permeability[direction];
+				rooms[0] = byte_swap(map[*i]);
+				rooms[1] = byte_swap(map[(*i)->adjacent[direction]]);
+				perm = (*i)->permeability[direction];
 
-			fwrite(rooms, 2, 4, file);
-			fwrite(&direction, 1, 1, file);
-			fwrite(&perm, 1, 1, file);
-
-			std::cerr << "door " << rooms[0] << " " << rooms[1] << " " << (int) perm << std::endl;
+				fwrite(rooms, 2, 4, file);
+				fwrite(&direction, 1, 1, file);
+				fwrite(&perm, 1, 1, file);
+			}
 		}
 	}
 

@@ -95,7 +95,7 @@ public:
 
 
 	void validateTranslation();
-	bool findIntersection(QPoint begin, QPoint end, float * length) const;
+	bool findIntersection(QPoint begin, QPoint end, float * length, float epsilon = 1.f) const;
 	bool isHandle(Selection & selection, QPoint point, float fuzz);
 
 	bool isEdgeSelected(Direction d) const;
@@ -112,6 +112,11 @@ public:
 
 	static Face::List_t getSplittingFaces(Face * _this, float ratio, bool direction);
 	void searchForDoors(Direction d);
+
+	int left() const;
+	int right() const;
+	int top() const;
+	int bottom() const;
 };
 
 

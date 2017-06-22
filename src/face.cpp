@@ -706,7 +706,7 @@ bool Face::canMoveHorizontally() const
 	return verticies[TopLeft].isSelected == verticies[BottomLeft].isSelected
 		&& verticies[TopRight].isSelected == verticies[BottomRight].isSelected;
 }
-
+/*
 static
 float crossProduct(QPoint u, QPoint v)
 {
@@ -722,13 +722,40 @@ float getSignedTriangleArea(QPoint a_left, QPoint a_right, QPoint p)
 static
 bool isPointColinear(QPoint a_left, QPoint a_right, QPoint p, float epsilon)
 {
-	return std::fabs(getSignedTriangleArea(a_left, a_right, p)) <= epsilon;
+	float area = getSignedTriangleArea(a_left, a_right, p);
+	return std::fabs(area) < epsilon;
+}*/
+
+static
+bool areSegmentsColinear(QPoint a_left, QPoint a_right, QPoint b_left, QPoint b_right, float )
+{
+	if(a_left.x() == a_right.x())
+		return a_left.x() == b_left.x() && a_left.x() == b_right.x();
+	else if(a_left.y() == a_right.y())
+		return a_left.y() == b_left.y() && a_left.y() == b_right.y();
+
+	const float m = (a_right.y() - a_left.y()) / (float) (a_right.x() - a_left.x());
+	const float b = a_left.y() - a_left.x() * m;
+
+	const int c1 = (b_left.x() *m + b) - b_left.y();
+	const int c2 = (b_right.x()*m + b) - b_right.y();
+
+	return !c1 && !c2;
+
+//	return isPointColinear(a_left, a_right, b_left, epsilon) && isPointColinear(a_left, a_right, b_right, epsilon);
 }
 
 static
-bool areSegmentsColinear(QPoint a_left, QPoint a_right, QPoint b_left, QPoint b_right, float epsilon)
+bool doSegmentsIntersect(QPoint a_left, QPoint a_right, QPoint b_left, QPoint b_right)
 {
-	return isPointColinear(a_left, a_right, b_left, epsilon) && isPointColinear(a_left, a_right, b_right, epsilon);
+	const float m = (a_right.y() - a_left.y()) / (float) (a_right.x() - a_left.x());
+	const float b = a_left.y() - a_left.x() * m;
+
+	const int c1 = (b_left.x() *m + b) - b_left.y();
+	const int c2 = (b_right.x()*m + b) - b_right.y();
+
+	return c1*c2 < 0;
+//	return isPointColinear(a_left, a_right, b_left, epsilon) && isPointColinear(a_left, a_right, b_right, epsilon);
 }
 
 static
@@ -750,7 +777,7 @@ bool doArcsOverlap(QPoint a1, QPoint a2, QPoint b1, QPoint b2)
 static
 bool doSegmentsOverlap(QPoint a1, QPoint a2, QPoint b1, QPoint b2)
 {
-	return areSegmentsColinear(a1, a2, b1, b2, 0.001)
+	return areSegmentsColinear(a1, a2, b1, b2, 1)
 		&& doArcsOverlap(a1, a2, b1, b2);
 }
 
@@ -1103,7 +1130,23 @@ bool Face::doesContainCorner(const Face & it) const
 
 void Face::validateTranslation()
 {
-	for(auto i = Face::m_faces->begin(); i != Face::m_faces->end(); ++i)
+	for(int j = 0; j < 4; ++j)
+	{
+		if(!verticies[j].isSelected)
+			continue;
+
+		if(j == TopLeft || j == BottomLeft)
+			verticies[j].x = std::min(verticies[j].x, right()-1);
+		else
+			verticies[j].x = std::max(verticies[j].x, left()+1);
+
+		if(j == TopLeft || j == TopRight)
+			verticies[j].y = std::min(verticies[j].y, bottom()-1);
+		else
+			verticies[j].y = std::max(verticies[j].y, top()+1);
+	}
+
+	for(auto i = m_faces->begin(); i != m_faces->end(); ++i)
 	{
 		if(*i == this) continue;
 
@@ -1115,6 +1158,7 @@ void Face::validateTranslation()
 		{
 			if(!verticies[j].isSelected)
 				continue;
+
 
 			float length;
 			if(!verticies[j^2].isSelected && (*i)->findIntersection(verticies[j^2], verticies[j], &length))
@@ -1135,14 +1179,31 @@ void Face::validateTranslation()
 	}
 }
 
+int Face::left() const
+{
+	return std::max(verticies[TopLeft].x, verticies[BottomLeft].x);
+}
+
+int Face::right() const
+{
+	return std::min(verticies[TopRight].x, verticies[BottomRight].x);
+}
+
+int Face::top() const
+{
+	return std::max(verticies[TopLeft].y, verticies[TopRight].y);
+}
+
+int Face::bottom() const
+{
+	return std::min(verticies[BottomLeft].y, verticies[BottomRight].y);
+}
 
 int Face::isLocationValid() const
 {
-	if(std::max(verticies[TopLeft].x, verticies[BottomLeft].x)
-	> std::min(verticies[TopRight].x, verticies[BottomRight].x)) return -3;
+	if(left() >= right()) return -3;
 
-	if(std::max(verticies[TopLeft].y, verticies[TopRight].y)
-	> std::min(verticies[BottomLeft].y, verticies[BottomRight].y)) return -4;
+	if(top() >= bottom()) return -4;
 
 	for(int i = 0; i < 4; ++i)
 	{
@@ -1153,7 +1214,7 @@ int Face::isLocationValid() const
 //checking for intersections should be quicker than
 //checking for each point being contained.
 //So don't bother with that pre-check
-	for(auto i = Face::m_faces->begin(); i != Face::m_faces->end(); ++i)
+	for(auto i = m_faces->begin(); i != m_faces->end(); ++i)
 	{
 		if(*i == this) continue;
 
@@ -1176,7 +1237,7 @@ int Face::isLocationValid() const
 }
 
 
-bool Face::findIntersection(QPoint begin, QPoint end, float * length) const
+bool Face::findIntersection(QPoint begin, QPoint end, float * length, float epsilon) const
 {
 	if(begin == end)
 		return false;
@@ -1236,12 +1297,14 @@ bool Face::findIntersection(QPoint begin, QPoint end, float * length) const
 			}
 			else
 			{
-				return true;
+				if(!areSegmentsColinear(begin, end, verticies[e.first], verticies[e.second], 1)
+				&& (distance - t2) >= 1)
+					return true;
 			}
 		}
 	}
 
-	if(length) return *length < distance;
+	if(length) return *length - distance;
 
 	return false;
 }
