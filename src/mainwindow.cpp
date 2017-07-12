@@ -211,6 +211,12 @@ bool MainWindow::c2eWalls() const
 
 void MainWindow::editUndo()
 {
+	if(mode != Cancel)
+	{
+		onKeyPress(Cancel);
+		return;
+	}
+
 	commandList.rollBack();
 	ui->actionUndo->setEnabled(commandList.canRollBack());
 	ui->actionRedo->setEnabled(commandList.canRollForward());
@@ -218,6 +224,7 @@ void MainWindow::editUndo()
 
 void MainWindow::editRedo()
 {
+	onKeyPress(Cancel);
 	commandList.rollForward();
 	ui->actionUndo->setEnabled(commandList.canRollBack());
 	ui->actionRedo->setEnabled(commandList.canRollForward());
@@ -271,6 +278,10 @@ void MainWindow::changeZoom(float factor)
 		ui->actionZoom_In->setEnabled(false);
 		ui->actionZoom_Out->setEnabled(true);
 	}
+
+
+	ui->horizontalScrollBar->setPageStep(zoom*64);
+	ui->verticalScrollBar->setPageStep(zoom*64);
 
 	ui->widget->repaint();
 }

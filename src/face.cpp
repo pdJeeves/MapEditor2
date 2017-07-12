@@ -1383,3 +1383,46 @@ void Face::swapVertex(Corner c, QPoint & v)
 	v = temp;
 }
 
+float operator^(const QPoint & a, const QPoint & b)
+{
+	return a.x()*b.y() - a.y()*b.x();
+}
+
+bool Face::GetTValues(float & x, float & y, QPoint c)
+{
+	QPoint v0 = verticies[TopLeft];
+	QPoint v1 = verticies[BottomLeft];
+	QPoint v2 = verticies[TopRight];
+	QPoint v3 = verticies[BottomRight];
+
+	QPoint d10 = v1 - v0;
+	QPoint d13 = v1 - v3;
+	QPoint d20 = v2 - v0;
+	QPoint d23 = v2 - v3;
+
+	x = (d20.x() - d13.y()) * (d23.y() - d10.x()) - (d20.y() - (d13.x())) * (d23.x() - (d10.y()));
+	y = d23.y() - d10.x();
+
+	if(!x || ! y)
+		return false;
+
+
+	x = ((v0.x() - v3.y() - c.x() + c.y()) * (d23.y() - d10.x()) - (v0.y() - v3.x() + c.x() - c.y()) * (d23.x() - d10.y())) / x;
+	y = (v0.x() - v3.y() + (d20.x() - d13.y())*x - c.x() + c.y()) / y;
+
+	return true;
+}
+
+QPoint Face::FromTValues(float x, float y)
+{
+	QPoint v0 = verticies[0];
+	QPoint v1 = verticies[1];
+	QPoint v2 = verticies[2];
+	QPoint v3 = verticies[3];
+
+	QPoint mouse (v0.x() + (v1.x() - v0.x())*x*(1-y) + (v2.x() + (v3.x() - v2.x())*x)*y,
+			      v0.y() + (v1.y() - v0.y())*y*(1-x) + (v2.y() + (v3.y() - v2.y())*y)*x);
+
+	return mouse;
+}
+

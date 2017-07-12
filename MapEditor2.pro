@@ -9,9 +9,7 @@ QT       += core gui
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
 INCLUDEPATH += \
-	/home/anyuser/Downloads/squish-1.11/ \
-	../Kreatures/Engine/ \
-	../Kreatures/libFreetures/include/
+	../squish-1.11/
 
 LIBS += -fPIC -lsquish -ldrm
 

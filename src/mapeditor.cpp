@@ -583,6 +583,7 @@ void MapEditor::draw(QPainter & painter)
 {
 	QSize background = dimensions();
 
+
 	if(mode == Grab || mode == Paste || mode == Extrude)
 	{
 		QPoint delta = endPos - startPos;
@@ -620,6 +621,38 @@ void MapEditor::draw(QPainter & painter)
 
 	QRect screen(pos, size);
 
+#if 0
+	if(mode == Cancel)
+	{
+		QPoint mouse = getMousePosition();
+
+		painter.setPen(Qt::yellow);
+
+		if(selection.allFaces.size())
+		{
+			float t1, t2;
+
+			if(selection.allFaces.front()->GetTValues(t1, t2, mouse))
+			{
+				painter.setPen(Qt::blue);
+				mouse = selection.allFaces.front()->FromTValues(t1, t2);
+			}
+		}
+
+		painter.setBrush(Qt::NoBrush);
+		QPoint verticies[4] =
+		{
+			QPoint(mouse.x()-5, mouse.y()-5),
+			QPoint(mouse.x()-5, mouse.y()+5),
+			QPoint(mouse.x()+5, mouse.y()+5),
+			QPoint(mouse.x()+5, mouse.y()-5)
+		};
+
+		painter.drawPolygon(verticies, 4);
+		ui->widget->needRepaint();
+	}
+
+#endif
 
 	for(auto i = selection.allFaces.begin(); i != selection.allFaces.end(); ++i)
 	{

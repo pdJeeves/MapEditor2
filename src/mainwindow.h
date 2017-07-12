@@ -52,6 +52,8 @@ friend class Properties;
 	QShortcut xKey;
 	QShortcut yKey;
 	QTimer autosaveTimer;
+protected:
+	CurrentMode mode;
 
 public:
 	CommandList commandList;

@@ -12,7 +12,6 @@ class MapEditor : public MainWindow
 {
 typedef MainWindow super;
 friend class Properties;
-	CurrentMode mode;
 	QPoint startPos;
 	QPoint endPos;
 

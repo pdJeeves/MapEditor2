@@ -117,6 +117,9 @@ public:
 	int right() const;
 	int top() const;
 	int bottom() const;
+
+	bool GetTValues(float & t1, float & t2, QPoint pos);
+	QPoint FromTValues(float t1, float t2);
 };
 
 

@@ -360,9 +360,9 @@ bool ExportS16Frames(FILE * file, const QImage & image, int width, int height, i
 		int x0 = (i/height)*img_width;
 		int y0 = (i%height)*img_height;
 
-		for(int y = 0; y < img_width; ++y)
+		for(int y = 0; y < img_height; ++y)
 		{
-			for(int x = 0; x < img_height; ++x)
+			for(int x = 0; x < img_width; ++x)
 			{
 				QRgb px = image.pixel(x0 + x, y0 + y);
 
@@ -386,8 +386,8 @@ bool exportS16(const QImage & image, FILE * file, MainWindow * parent)
 	uint32_t RGBformat = byte_swap((uint32_t) 1);
 	uint16_t length    = byte_swap((uint16_t) (58*16));
 
-	fread(&RGBformat, 4, 1, file);
-	fread(&length, 2, 1, file);
+	fwrite(&RGBformat, 4, 1, file);
+	fwrite(&length, 2, 1, file);
 
 	return ExportS16Frames(file, image, 58, 16, 144, 150, parent);
 }
